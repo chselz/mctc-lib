@@ -19,7 +19,7 @@ module test_data
    use mctc_io_convert, only : gmoltoau
    use mctc_io_structure, only : structure_type
    use testsuite_structure, only : get_structure
-   use mctc_data, only : get_atomic_rad, get_covalent_rad, get_atomic_mass, get_pauling_en, get_vdw_rad
+   use mctc_data, only : get_atomic_rad, get_covalent_rad, get_atomic_mass, get_pauling_en, get_vdw_rad, get_effective_charge
    implicit none
    private
 
@@ -47,7 +47,9 @@ contains
       & new_unittest("vdw_rad", test_vdw_rad), &
       & new_unittest("vdw_rad_mb04", test_vdw_rad_mb04), &
       & new_unittest("atomic_mass", test_atomic_mass), &
-      & new_unittest("atomic_mass_mb05", test_atomic_mass_mb05) &
+      & new_unittest("atomic_mass_mb05", test_atomic_mass_mb05), &
+      & new_unittest("effective_charge", test_effective_charge), &
+      & new_unittest("effective_charge_mb06", test_effective_charge_mb06) &
       & ]
 
    end subroutine collect_data
@@ -300,5 +302,47 @@ contains
 
    end subroutine test_atomic_mass_mb05
 
+
+   subroutine test_effective_charge(error)
+      
+      !> Error handling
+      type(error_type), allocatable, intent(out) :: error
+   
+      call check(error, get_effective_charge("C"), get_effective_charge(6))
+      if (allocated(error)) return
+      call check(error, get_effective_charge("Am"), get_effective_charge(95))
+      if (allocated(error)) return
+      call check(error, get_effective_charge("Og"), get_effective_charge(118))
+      if (allocated(error)) return
+      call check(error, get_effective_charge("X"), get_effective_charge(-1))
+   
+   end subroutine test_effective_charge  
+
+   subroutine test_effective_charge_mb06(error)
+
+      !> Error handling
+      type(error_type), allocatable, intent(out) :: error
+
+      type(structure_type) :: mol
+      real(wp), allocatable :: zeff_sym(:), zeff_num(:)
+
+      real(wp), parameter :: ref(7) = [&
+      & 5_wp,7_wp, 1_wp, 8_wp, 13_wp, 12_wp, 6_wp]
+
+      call get_structure(mol, "mindless06")
+
+      zeff_sym = get_effective_charge(mol%sym)
+      zeff_num = get_effective_charge(mol%num)
+      
+      if (any(abs(zeff_sym - zeff_num) > thr) .or. any(abs(zeff_sym - ref) > thr)) then
+         call test_failed(error, "Atomic masses do not match")
+         print'(3es21.14)', zeff_sym
+         print'("---")'
+         print'(3es21.14)', zeff_num
+         print'("---")'
+         print'(3es21.14)', ref
+      end if
+
+   end subroutine test_effective_charge_mb06
 
 end module test_data

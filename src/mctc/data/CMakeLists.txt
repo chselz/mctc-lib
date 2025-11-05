@@ -21,6 +21,7 @@ list(
   "${dir}/mass.f90"
   "${dir}/paulingen.f90"
   "${dir}/vdwrad.f90"
+  "${dir}/zeff.f90"
 )
 
 set(srcs "${srcs}" PARENT_SCOPE)
