@@ -44,9 +44,12 @@ subroutine read_pdb(self, unit, error)
 
    integer, parameter :: p_initial_size = 1000 ! this is going to be a protein
 
-   integer :: iatom, jatom, iresidue, try, stat, atom_type, pos, lnum
+   integer :: iatom, jatom, iresidue, try, stat, atom_type, pos, lnum, nat
+   integer, allocatable :: map(:)
    real(wp) :: occ, temp, coords(3)
+   real(wp), allocatable :: occ_values(:)
    real(wp), allocatable :: xyz(:,:)
+   logical, allocatable :: keep(:)
    type(token_type) :: token
    character(len=4) :: a_charge
    character(len=:), allocatable :: line
@@ -55,6 +58,7 @@ subroutine read_pdb(self, unit, error)
 
    allocate(sym(p_initial_size), source=repeat(' ', symbol_length))
    allocate(xyz(3, p_initial_size), source=0.0_wp)
+   allocate(occ_values(p_initial_size), source=1.0_wp)
    allocate(pdb(p_initial_size), source=pdb_data())
 
    iatom = 0
@@ -67,6 +71,7 @@ subroutine read_pdb(self, unit, error)
       if (index(line, 'ATOM') == 1 .or. index(line, 'HETATM') == 1) then
          if (iatom >= size(xyz, 2)) call resize(xyz)
          if (iatom >= size(sym)) call resize(sym)
+         if (iatom >= size(occ_values)) call resize(occ_values)
          if (iatom >= size(pdb)) call resize(pdb)
          iatom = iatom + 1
          pdb(iatom)%het = index(line, 'HETATM') == 1
@@ -132,6 +137,7 @@ subroutine read_pdb(self, unit, error)
                & line, token, filename(unit), lnum, "unexpected value")
             return
          end if
+         occ_values(iatom) = occ
 
          xyz(:,iatom) = coords * aatoau
          atom_type = to_number(sym(iatom))
@@ -156,11 +162,88 @@ subroutine read_pdb(self, unit, error)
       end if
    end do
 
-   call new(self, sym(:iatom), xyz(:, :iatom))
-   self%pdb = pdb(:iatom)
-   self%charge = sum(pdb(:iatom)%charge)
+   allocate(keep(iatom), source=.true.)
+   call drop_low_occupancy_alternatives(pdb(:iatom), occ_values(:iatom), keep)
+
+   nat = count(keep)
+   allocate(map(nat))
+   jatom = 0
+   do iatom = 1, size(keep)
+      if (.not.keep(iatom)) cycle
+      jatom = jatom + 1
+      map(jatom) = iatom
+   end do
+
+   call new(self, sym(map), xyz(:, map))
+   self%pdb = pdb(map)
+   self%charge = sum(pdb(map)%charge)
 
 end subroutine read_pdb
+
+
+subroutine drop_low_occupancy_alternatives(pdb, occ_values, keep)
+
+   type(pdb_data), intent(in) :: pdb(:)
+   real(wp), intent(in) :: occ_values(:)
+   logical, intent(out) :: keep(:)
+
+   integer :: iatom, jatom, best
+
+   keep = .true.
+   do iatom = 1, size(pdb)
+      if (.not.keep(iatom)) cycle
+      best = iatom
+      do jatom = iatom + 1, size(pdb)
+         if (.not.is_alternative_site(pdb(iatom), pdb(jatom))) cycle
+         if (has_higher_occupancy(pdb(jatom), occ_values(jatom), pdb(best), occ_values(best))) then
+            keep(best) = .false.
+            best = jatom
+         else
+            keep(jatom) = .false.
+         end if
+      end do
+   end do
+
+end subroutine drop_low_occupancy_alternatives
+
+
+pure logical function is_alternative_site(lhs, rhs)
+
+   type(pdb_data), intent(in) :: lhs
+   type(pdb_data), intent(in) :: rhs
+
+   is_alternative_site = lhs%name == rhs%name .and. &
+      & lhs%residue == rhs%residue .and. &
+      & lhs%chains == rhs%chains .and. &
+      & lhs%residue_number == rhs%residue_number .and. &
+      & lhs%code == rhs%code .and. &
+      & lhs%segid == rhs%segid .and. &
+      & (lhs%het .eqv. rhs%het) .and. &
+      & (lhs%loc /= ' ' .or. rhs%loc /= ' ')
+
+end function is_alternative_site
+
+
+pure logical function has_higher_occupancy(candidate, candidate_occ, current, current_occ)
+
+   type(pdb_data), intent(in) :: candidate
+   real(wp), intent(in) :: candidate_occ
+   type(pdb_data), intent(in) :: current
+   real(wp), intent(in) :: current_occ
+
+   real(wp), parameter :: occ_thr = 10 * epsilon(1.0_wp)
+
+   has_higher_occupancy = .false.
+   if (candidate_occ > current_occ + occ_thr) then
+      has_higher_occupancy = .true.
+      return
+   end if
+
+   if (abs(candidate_occ - current_occ) <= occ_thr) then
+      has_higher_occupancy = candidate%loc == ' ' .and. current%loc /= ' '
+   end if
+
+end function has_higher_occupancy
 
 
 end module mctc_io_read_pdb

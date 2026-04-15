@@ -18,6 +18,7 @@ title: Protein Data Bank (PDB) Format
 
 The Protein Data Bank (PDB) format is a standard for representing macromolecular structures.
 This implementation reads atomic coordinates from ATOM and HETATM records and bond connectivity from CONECT records.
+Alternative locations are resolved by keeping, for each atomic site, the conformer with the highest occupancy.
 
 ### Supported Record Types
 
@@ -180,7 +181,6 @@ END
 The following features are currently not supported:
 
 - Multiple model/file PDB input (only first model is read)
-- Fractional site occupancy (all alternative locations are treated as full atoms)
 - Cell information (CRYST1 record) is not preserved; PDB input is always handled as molecular
 - Anisotropic displacement parameters (ANISOU records)
 
