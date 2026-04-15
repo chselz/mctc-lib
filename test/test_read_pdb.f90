@@ -39,6 +39,8 @@ subroutine collect_read_pdb(testsuite)
       & new_unittest("valid3-pdb", test_valid3_pdb), &
       & new_unittest("valid4-pdb", test_valid4_pdb), &
       & new_unittest("valid5-pdb", test_valid5_pdb), &
+      & new_unittest("valid6-pdb", test_valid6_pdb), &
+      & new_unittest("valid7-pdb", test_valid7_pdb), &
       & new_unittest("invalid1-pdb", test_invalid1_pdb, should_fail=.true.), &
       & new_unittest("invalid2-pdb", test_invalid2_pdb, should_fail=.true.), &
       & new_unittest("invalid3-pdb", test_invalid3_pdb, should_fail=.true.) &
@@ -365,6 +367,70 @@ subroutine test_valid5_pdb(error)
    if (allocated(error)) return
 
 end subroutine test_valid5_pdb
+
+
+subroutine test_valid6_pdb(error)
+
+   !> Error handling
+   type(error_type), allocatable, intent(out) :: error
+
+   type(structure_type) :: struc
+   integer :: unit
+
+   open(status='scratch', newunit=unit)
+   write(unit, '(a)') &
+      "ATOM      1  N   SER A   1       0.000   0.000   0.000  1.00 10.00           N", &
+      "ATOM      2  CA ASER A   1       1.000   0.000   0.000  0.50 10.00           C", &
+      "ATOM      3  CA BSER A   1       2.000   0.000   0.000  0.50 10.00           C", &
+      "ATOM      4  C   SER A   1       3.000   0.000   0.000  1.00 10.00           C", &
+      "ATOM      5  O   SER A   1       4.000   0.000   0.000  1.00 10.00           O", &
+      "END"
+   rewind(unit)
+
+   call read_pdb(struc, unit, error)
+   close(unit)
+   if (allocated(error)) return
+
+   call check(error, struc%nat, 4, "Number of atoms does not match")
+   if (allocated(error)) return
+   call check(error, struc%xyz(1, 2), 1.0_wp*aatoau, thr=1.0e-12_wp, &
+      & message="Tie occupancy should keep the first alternate location")
+   if (allocated(error)) return
+
+end subroutine test_valid6_pdb
+
+
+subroutine test_valid7_pdb(error)
+
+   !> Error handling
+   type(error_type), allocatable, intent(out) :: error
+
+   type(structure_type) :: struc
+   integer :: unit
+
+   open(status='scratch', newunit=unit)
+   write(unit, '(a)') &
+      "ATOM      1  N   SER A   1       0.000   0.000   0.000  1.00 10.00           N", &
+      "ATOM      2  CA ASER A   1       1.000   0.000   0.000  0.25 10.00           C", &
+      "ATOM      3  CA BSER A   1       2.000   0.000   0.000  0.25 10.00           C", &
+      "ATOM      4  CA CSER A   1       3.000   0.000   0.000  0.25 10.00           C", &
+      "ATOM      5  CA DSER A   1       4.000   0.000   0.000  0.25 10.00           C", &
+      "ATOM      6  C   SER A   1       5.000   0.000   0.000  1.00 10.00           C", &
+      "ATOM      7  O   SER A   1       6.000   0.000   0.000  1.00 10.00           O", &
+      "END"
+   rewind(unit)
+
+   call read_pdb(struc, unit, error)
+   close(unit)
+   if (allocated(error)) return
+
+   call check(error, struc%nat, 4, "Number of atoms does not match")
+   if (allocated(error)) return
+   call check(error, struc%xyz(1, 2), 1.0_wp*aatoau, thr=1.0e-12_wp, &
+      & message="Four-way tie should keep the first alternate location")
+   if (allocated(error)) return
+
+end subroutine test_valid7_pdb
 
 
 subroutine test_invalid1_pdb(error)
