@@ -14,7 +14,7 @@
 
 module mctc_io_read_pdb
    use mctc_env_accuracy, only : wp
-   use mctc_env_error, only : error_type
+   use mctc_env_error, only : error_type, fatal_error
    use mctc_io_convert, only : aatoau
    use mctc_io_resize, only : resize
    use mctc_io_symbols, only : to_number, symbol_length
@@ -137,7 +137,13 @@ subroutine read_pdb(self, unit, error)
                & line, token, filename(unit), lnum, "unexpected value")
             return
          end if
+         if (occ < 0.0_wp .or. occ > 1.0_wp) then
+            call io_error(error, "Invalid occupancy in record", &
+               & line, token_type(55, 60), filename(unit), lnum, "expected value in [0.0, 1.0]")
+            return
+         end if
          occ_values(iatom) = occ
+         pdb(iatom)%occupancy = occ
 
          xyz(:,iatom) = coords * aatoau
          atom_type = to_number(sym(iatom))
@@ -162,6 +168,9 @@ subroutine read_pdb(self, unit, error)
       end if
    end do
 
+   call validate_partial_occupancy_sites(pdb(:iatom), occ_values(:iatom), error)
+   if (allocated(error)) return
+
    allocate(keep(iatom), source=.true.)
    call drop_low_occupancy_alternatives(pdb(:iatom), occ_values(:iatom), keep)
 
@@ -179,6 +188,56 @@ subroutine read_pdb(self, unit, error)
    self%charge = sum(pdb(map)%charge)
 
 end subroutine read_pdb
+
+
+subroutine validate_partial_occupancy_sites(pdb, occ_values, error)
+
+   type(pdb_data), intent(in) :: pdb(:)
+   real(wp), intent(in) :: occ_values(:)
+   type(error_type), allocatable, intent(out) :: error
+
+   real(wp), parameter :: occ_thr = 10 * epsilon(1.0_wp)
+
+   integer :: iatom, jatom
+   logical :: has_alternative, has_duplicate
+
+   do iatom = 1, size(pdb)
+      if (occ_values(iatom) >= 1.0_wp - occ_thr) cycle
+
+      has_alternative = .false.
+      has_duplicate = .false.
+      do jatom = 1, size(pdb)
+         if (iatom == jatom) cycle
+         if (.not.is_same_site(pdb(iatom), pdb(jatom))) cycle
+         has_duplicate = .true.
+         if (is_alternative_site(pdb(iatom), pdb(jatom))) then
+            has_alternative = .true.
+         end if
+      end do
+
+      if (has_duplicate .and. .not.has_alternative) then
+         call fatal_error(error, "Partial occupancy requires alternative location records")
+         return
+      end if
+   end do
+
+end subroutine validate_partial_occupancy_sites
+
+
+pure logical function is_same_site(lhs, rhs)
+
+   type(pdb_data), intent(in) :: lhs
+   type(pdb_data), intent(in) :: rhs
+
+   is_same_site = lhs%name == rhs%name .and. &
+      & lhs%residue == rhs%residue .and. &
+      & lhs%chains == rhs%chains .and. &
+      & lhs%residue_number == rhs%residue_number .and. &
+      & lhs%code == rhs%code .and. &
+      & lhs%segid == rhs%segid .and. &
+      & (lhs%het .eqv. rhs%het)
+
+end function is_same_site
 
 
 subroutine drop_low_occupancy_alternatives(pdb, occ_values, keep)
@@ -212,13 +271,7 @@ pure logical function is_alternative_site(lhs, rhs)
    type(pdb_data), intent(in) :: lhs
    type(pdb_data), intent(in) :: rhs
 
-   is_alternative_site = lhs%name == rhs%name .and. &
-      & lhs%residue == rhs%residue .and. &
-      & lhs%chains == rhs%chains .and. &
-      & lhs%residue_number == rhs%residue_number .and. &
-      & lhs%code == rhs%code .and. &
-      & lhs%segid == rhs%segid .and. &
-      & (lhs%het .eqv. rhs%het) .and. &
+   is_alternative_site = is_same_site(lhs, rhs) .and. &
       & (lhs%loc /= ' ' .or. rhs%loc /= ' ')
 
 end function is_alternative_site
