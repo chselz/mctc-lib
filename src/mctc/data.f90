@@ -29,6 +29,7 @@
 !> - [[get_vdw_rad]]: van der Waals radii in Bohr
 !> - [[get_atomic_rad]]: Atomic radii in Bohr
 !> - [[get_pauling_en]]: Pauling electronegativities
+!> - [[get_atomic_mass]]: Atomic masses in atomic units (electron mass)
 !>
 !> Example usage:
 !>
@@ -49,5 +50,6 @@ module mctc_data
    implicit none
    private
 
-   public :: get_atomic_rad, get_covalent_rad, get_pauling_en, get_vdw_rad, get_atomic_mass
+   public :: get_atomic_rad, get_covalent_rad, get_pauling_en, get_vdw_rad, &
+      & get_atomic_mass
 end module mctc_data
