@@ -297,11 +297,11 @@ contains
       if (any(abs(mass_sym - mass_num) > thr * ref) &
          & .or. any(abs(mass_sym - ref) > thr * ref)) then
          call test_failed(error, "Atomic masses do not match")
-         print'(3es21.14)', mass_sym
+         print"(3es21.14)", mass_sym
          print'("---")'
-         print'(3es21.14)', mass_num
+         print"(3es21.14)", mass_num
          print'("---")'
-         print'(3es21.14)', ref
+         print"(3es21.14)", ref
       end if
 
    end subroutine test_atomic_mass_mb05
